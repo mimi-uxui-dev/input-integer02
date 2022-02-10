@@ -2,24 +2,37 @@ const csjs = require('csjs-inject')
 const bel = require('bel')
 const inputInteger = require("..")
 
+const state = {
+    from: { value: 0 }
+}
+
 function demo() {
-    const output = bel`<div class=${css.output}>011</div>`
+    const output = bel`<div class=${css.output}>0</div>`
 
     const page = bel`<div class=${css.demo}>
         <h1>input intergerrr demo</h1>
         ${output}
         <div class=${css.container}>
-            ${inputInteger({ value: 1, placeholder: 'integer' }, listen)}
-            ${inputInteger({ value: 2, placeholder: 'integer' }, listen)}
-            ${inputInteger({ value: 3, placeholder: 'integer' }, listen)}
+            ${inputInteger({ value: 0, placeholder: 'integer' }, listen)}
+            ${inputInteger({ value: 0, placeholder: 'integer' }, listen)}
+            ${inputInteger({ value: 0, placeholder: 'integer' }, listen)}
         </div>  
     </div>`
 
     return page
 
     function listen(message) {
-        const { type, body } = message
-        if (type === 'update') output.textContent = body
+        const { from, type, body } = message
+        if (type === 'update') {
+            if (!state[from]) state[from] = { value: Number(body) }
+            else state[from].value = Number(body)
+
+            const values = Object.keys(state).map(from => state[from].value)
+
+            const sum = values.reduce((s, x) => s + x, 0)
+
+            output.textContent = sum
+        }
     }
 }
 
