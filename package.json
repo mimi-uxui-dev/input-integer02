@@ -1,6 +1,6 @@
 {
   "name": "input-integer02",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "ui component slider for numbers",
   "main": "src/input-integer",
   "scripts": {
