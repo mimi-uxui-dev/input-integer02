@@ -1,40 +1,32 @@
 const csjs = require('csjs-inject')
-
+const html = require('nanohtml')
 const inputInteger = require("..")
 
-const parser = document.createElement('div')
-
-/* const x = inputInteger() */
-/* document.body.innerHTML = `<h1>${x} You good? Wow that was fast!</h1>` */
-
-function start(css) {
-
-    parser.innerHTML = `<div>
-        <h1>This is working! Super Fast🔥</h1>
-           <div class=${css.container}></div> 
-           <div class=${css.output}>I am the output</div> 
+function demo() {
+    const page = html`<div class=${css.demo}>
+        <h1>input intergerrr demo</h1>
+        <div class=${css.container}>
+            ${inputInteger()}
+            ${inputInteger()}
+            ${inputInteger()}
+        </div>  
     </div>`
 
-    const page = parser.children[0]
-    const container = page.children[1]
-    const output = page.children[2]
-
-
-    const input1 = inputInteger()
-    const input2 = inputInteger()
-
-    container.appendChild(input1)
-    container.appendChild(input2)
-
-    document.body.appendChild(page)
-
+    return page
 }
 
-start(csjs`
-    .output{
-        border: 1px solid red;
+const css = csjs`
+    .demo {
+        padding: 20px; 
+        margin: 20px; 
+        border: 2px dashed green;
     }
     .container{
-        border: 1px solid blue;
+        display: flex; 
+        flex-direction: column;
+        width: 50%;
+        gap: 24px ;
     }
-`)
+`
+
+document.body.appendChild(demo())
