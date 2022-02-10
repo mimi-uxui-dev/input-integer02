@@ -1,9 +1,9 @@
 const csjs = require('csjs-inject')
-const html = require('nanohtml')
+const bel = require('bel')
 const inputInteger = require("..")
 
 function demo() {
-    const page = html`<div class=${css.demo}>
+    const page = bel`<div class=${css.demo}>
         <h1>input intergerrr demo</h1>
         <div class=${css.container}>
             ${inputInteger()}

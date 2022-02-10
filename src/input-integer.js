@@ -1,10 +1,10 @@
 const csjs = require('csjs-inject')
-const html = require('nanohtml')
+const bel = require('bel')
 
 module.exports = inputInteger
 
 function inputInteger() {
-    return html`<input class=${css.inputInteger} type="number" placeholder="0" >`
+    return bel`<input class=${css.inputInteger} type="number" placeholder="0" >`
 }
 
 const css = csjs`

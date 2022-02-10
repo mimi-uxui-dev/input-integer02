@@ -1,10 +1,10 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 const csjs = require('csjs-inject')
-const html = require('nanohtml')
+const bel = require('bel')
 const inputInteger = require("..")
 
 function demo() {
-    const page = html`<div class=${css.demo}>
+    const page = bel`<div class=${css.demo}>
         <h1>input intergerrr demo</h1>
         <div class=${css.container}>
             ${inputInteger()}
@@ -31,7 +31,241 @@ const css = csjs`
 `
 
 document.body.appendChild(demo())
-},{"..":30,"csjs-inject":4,"nanohtml":26}],2:[function(require,module,exports){
+},{"..":26,"bel":3,"csjs-inject":6}],2:[function(require,module,exports){
+var trailingNewlineRegex = /\n[\s]+$/
+var leadingNewlineRegex = /^\n[\s]+/
+var trailingSpaceRegex = /[\s]+$/
+var leadingSpaceRegex = /^[\s]+/
+var multiSpaceRegex = /[\n\s]+/g
+
+var TEXT_TAGS = [
+  'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'data', 'dfn', 'em', 'i',
+  'kbd', 'mark', 'q', 'rp', 'rt', 'rtc', 'ruby', 's', 'amp', 'small', 'span',
+  'strong', 'sub', 'sup', 'time', 'u', 'var', 'wbr'
+]
+
+var VERBATIM_TAGS = [
+  'code', 'pre', 'textarea'
+]
+
+module.exports = function appendChild (el, childs) {
+  if (!Array.isArray(childs)) return
+
+  var nodeName = el.nodeName.toLowerCase()
+
+  var hadText = false
+  var value, leader
+
+  for (var i = 0, len = childs.length; i < len; i++) {
+    var node = childs[i]
+    if (Array.isArray(node)) {
+      appendChild(el, node)
+      continue
+    }
+
+    if (typeof node === 'number' ||
+      typeof node === 'boolean' ||
+      typeof node === 'function' ||
+      node instanceof Date ||
+      node instanceof RegExp) {
+      node = node.toString()
+    }
+
+    var lastChild = el.childNodes[el.childNodes.length - 1]
+
+    // Iterate over text nodes
+    if (typeof node === 'string') {
+      hadText = true
+
+      // If we already had text, append to the existing text
+      if (lastChild && lastChild.nodeName === '#text') {
+        lastChild.nodeValue += node
+
+      // We didn't have a text node yet, create one
+      } else {
+        node = document.createTextNode(node)
+        el.appendChild(node)
+        lastChild = node
+      }
+
+      // If this is the last of the child nodes, make sure we close it out
+      // right
+      if (i === len - 1) {
+        hadText = false
+        // Trim the child text nodes if the current node isn't a
+        // node where whitespace matters.
+        if (TEXT_TAGS.indexOf(nodeName) === -1 &&
+          VERBATIM_TAGS.indexOf(nodeName) === -1) {
+          value = lastChild.nodeValue
+            .replace(leadingNewlineRegex, '')
+            .replace(trailingSpaceRegex, '')
+            .replace(trailingNewlineRegex, '')
+            .replace(multiSpaceRegex, ' ')
+          if (value === '') {
+            el.removeChild(lastChild)
+          } else {
+            lastChild.nodeValue = value
+          }
+        } else if (VERBATIM_TAGS.indexOf(nodeName) === -1) {
+          // The very first node in the list should not have leading
+          // whitespace. Sibling text nodes should have whitespace if there
+          // was any.
+          leader = i === 0 ? '' : ' '
+          value = lastChild.nodeValue
+            .replace(leadingNewlineRegex, leader)
+            .replace(leadingSpaceRegex, ' ')
+            .replace(trailingSpaceRegex, '')
+            .replace(trailingNewlineRegex, '')
+            .replace(multiSpaceRegex, ' ')
+          lastChild.nodeValue = value
+        }
+      }
+
+    // Iterate over DOM nodes
+    } else if (node && node.nodeType) {
+      // If the last node was a text node, make sure it is properly closed out
+      if (hadText) {
+        hadText = false
+
+        // Trim the child text nodes if the current node isn't a
+        // text node or a code node
+        if (TEXT_TAGS.indexOf(nodeName) === -1 &&
+          VERBATIM_TAGS.indexOf(nodeName) === -1) {
+          value = lastChild.nodeValue
+            .replace(leadingNewlineRegex, '')
+            .replace(trailingNewlineRegex, '')
+            .replace(multiSpaceRegex, ' ')
+
+          // Remove empty text nodes, append otherwise
+          if (value === '') {
+            el.removeChild(lastChild)
+          } else {
+            lastChild.nodeValue = value
+          }
+        // Trim the child nodes if the current node is not a node
+        // where all whitespace must be preserved
+        } else if (VERBATIM_TAGS.indexOf(nodeName) === -1) {
+          value = lastChild.nodeValue
+            .replace(leadingSpaceRegex, ' ')
+            .replace(leadingNewlineRegex, '')
+            .replace(trailingNewlineRegex, '')
+            .replace(multiSpaceRegex, ' ')
+          lastChild.nodeValue = value
+        }
+      }
+
+      // Store the last nodename
+      var _nodeName = node.nodeName
+      if (_nodeName) nodeName = _nodeName.toLowerCase()
+
+      // Append the node to the DOM
+      el.appendChild(node)
+    }
+  }
+}
+
+},{}],3:[function(require,module,exports){
+var hyperx = require('hyperx')
+var appendChild = require('./appendChild')
+
+var SVGNS = 'http://www.w3.org/2000/svg'
+var XLINKNS = 'http://www.w3.org/1999/xlink'
+
+var BOOL_PROPS = [
+  'autofocus', 'checked', 'defaultchecked', 'disabled', 'formnovalidate',
+  'indeterminate', 'readonly', 'required', 'selected', 'willvalidate'
+]
+
+var COMMENT_TAG = '!--'
+
+var SVG_TAGS = [
+  'svg', 'altGlyph', 'altGlyphDef', 'altGlyphItem', 'animate', 'animateColor',
+  'animateMotion', 'animateTransform', 'circle', 'clipPath', 'color-profile',
+  'cursor', 'defs', 'desc', 'ellipse', 'feBlend', 'feColorMatrix',
+  'feComponentTransfer', 'feComposite', 'feConvolveMatrix',
+  'feDiffuseLighting', 'feDisplacementMap', 'feDistantLight', 'feFlood',
+  'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur', 'feImage',
+  'feMerge', 'feMergeNode', 'feMorphology', 'feOffset', 'fePointLight',
+  'feSpecularLighting', 'feSpotLight', 'feTile', 'feTurbulence', 'filter',
+  'font', 'font-face', 'font-face-format', 'font-face-name', 'font-face-src',
+  'font-face-uri', 'foreignObject', 'g', 'glyph', 'glyphRef', 'hkern', 'image',
+  'line', 'linearGradient', 'marker', 'mask', 'metadata', 'missing-glyph',
+  'mpath', 'path', 'pattern', 'polygon', 'polyline', 'radialGradient', 'rect',
+  'set', 'stop', 'switch', 'symbol', 'text', 'textPath', 'title', 'tref',
+  'tspan', 'use', 'view', 'vkern'
+]
+
+function belCreateElement (tag, props, children) {
+  var el
+
+  // If an svg tag, it needs a namespace
+  if (SVG_TAGS.indexOf(tag) !== -1) {
+    props.namespace = SVGNS
+  }
+
+  // If we are using a namespace
+  var ns = false
+  if (props.namespace) {
+    ns = props.namespace
+    delete props.namespace
+  }
+
+  // Create the element
+  if (ns) {
+    el = document.createElementNS(ns, tag)
+  } else if (tag === COMMENT_TAG) {
+    return document.createComment(props.comment)
+  } else {
+    el = document.createElement(tag)
+  }
+
+  // Create the properties
+  for (var p in props) {
+    if (props.hasOwnProperty(p)) {
+      var key = p.toLowerCase()
+      var val = props[p]
+      // Normalize className
+      if (key === 'classname') {
+        key = 'class'
+        p = 'class'
+      }
+      // The for attribute gets transformed to htmlFor, but we just set as for
+      if (p === 'htmlFor') {
+        p = 'for'
+      }
+      // If a property is boolean, set itself to the key
+      if (BOOL_PROPS.indexOf(key) !== -1) {
+        if (val === 'true') val = key
+        else if (val === 'false') continue
+      }
+      // If a property prefers being set directly vs setAttribute
+      if (key.slice(0, 2) === 'on') {
+        el[p] = val
+      } else {
+        if (ns) {
+          if (p === 'xlink:href') {
+            el.setAttributeNS(XLINKNS, p, val)
+          } else if (/^xmlns($|:)/i.test(p)) {
+            // skip xmlns definitions
+          } else {
+            el.setAttributeNS(null, p, val)
+          }
+        } else {
+          el.setAttribute(p, val)
+        }
+      }
+    }
+  }
+
+  appendChild(el, children)
+  return el
+}
+
+module.exports = hyperx(belCreateElement, {comments: true})
+module.exports.default = module.exports
+module.exports.createElement = belCreateElement
+
+},{"./appendChild":2,"hyperx":24}],4:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -50,12 +284,12 @@ function csjsInserter() {
 module.exports = csjsInserter;
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"csjs":7,"insert-css":23}],3:[function(require,module,exports){
+},{"csjs":9,"insert-css":25}],5:[function(require,module,exports){
 'use strict';
 
 module.exports = require('csjs/get-css');
 
-},{"csjs/get-css":6}],4:[function(require,module,exports){
+},{"csjs/get-css":8}],6:[function(require,module,exports){
 'use strict';
 
 var csjs = require('./csjs');
@@ -64,17 +298,17 @@ module.exports = csjs;
 module.exports.csjs = csjs;
 module.exports.getCss = require('./get-css');
 
-},{"./csjs":2,"./get-css":3}],5:[function(require,module,exports){
+},{"./csjs":4,"./get-css":5}],7:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./lib/csjs');
 
-},{"./lib/csjs":11}],6:[function(require,module,exports){
+},{"./lib/csjs":13}],8:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./lib/get-css');
 
-},{"./lib/get-css":15}],7:[function(require,module,exports){
+},{"./lib/get-css":17}],9:[function(require,module,exports){
 'use strict';
 
 var csjs = require('./csjs');
@@ -84,7 +318,7 @@ module.exports.csjs = csjs;
 module.exports.noScope = csjs({ noscope: true });
 module.exports.getCss = require('./get-css');
 
-},{"./csjs":5,"./get-css":6}],8:[function(require,module,exports){
+},{"./csjs":7,"./get-css":8}],10:[function(require,module,exports){
 'use strict';
 
 /**
@@ -106,7 +340,7 @@ module.exports = function encode(integer) {
   return str;
 };
 
-},{}],9:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 'use strict';
 
 var makeComposition = require('./composition').makeComposition;
@@ -150,7 +384,7 @@ function getClassChain(obj) {
   return acc;
 }
 
-},{"./composition":10}],10:[function(require,module,exports){
+},{"./composition":12}],12:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -230,7 +464,7 @@ function ignoreComposition(values) {
  */
 function Composition() {}
 
-},{}],11:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 var extractExtends = require('./css-extract-extends');
@@ -308,7 +542,7 @@ function without(obj, unwanted) {
   }, {});
 }
 
-},{"./build-exports":9,"./composition":10,"./css-extract-extends":12,"./css-key":13,"./extract-exports":14,"./scopeify":20}],12:[function(require,module,exports){
+},{"./build-exports":11,"./composition":12,"./css-extract-extends":14,"./css-key":15,"./extract-exports":16,"./scopeify":22}],14:[function(require,module,exports){
 'use strict';
 
 var makeComposition = require('./composition').makeComposition;
@@ -361,7 +595,7 @@ function getClassName(str) {
   return trimmed[0] === '.' ? trimmed.substr(1) : trimmed;
 }
 
-},{"./composition":10}],13:[function(require,module,exports){
+},{"./composition":12}],15:[function(require,module,exports){
 'use strict';
 
 /**
@@ -371,7 +605,7 @@ function getClassName(str) {
 
 module.exports = ' css ';
 
-},{}],14:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 var regex = require('./regex');
@@ -398,7 +632,7 @@ function getExport(css, regex) {
   return prop;
 }
 
-},{"./regex":17}],15:[function(require,module,exports){
+},{"./regex":19}],17:[function(require,module,exports){
 'use strict';
 
 var cssKey = require('./css-key');
@@ -407,7 +641,7 @@ module.exports = function getCss(csjs) {
   return csjs[cssKey];
 };
 
-},{"./css-key":13}],16:[function(require,module,exports){
+},{"./css-key":15}],18:[function(require,module,exports){
 'use strict';
 
 /**
@@ -425,7 +659,7 @@ module.exports = function hashStr(str) {
   return hash >>> 0;
 };
 
-},{}],17:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 'use strict';
 
 var findClasses = /(\.)(?!\d)([^\s\.,{\[>+~#:)]*)(?![^{]*})/.source;
@@ -441,7 +675,7 @@ module.exports = {
   ignoreComments: ignoreComments,
 };
 
-},{}],18:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var ignoreComments = require('./regex').ignoreComments;
 
 module.exports = replaceAnimations;
@@ -472,7 +706,7 @@ function replaceAnimations(result) {
   return result;
 }
 
-},{"./regex":17}],19:[function(require,module,exports){
+},{"./regex":19}],21:[function(require,module,exports){
 'use strict';
 
 var encode = require('./base62-encode');
@@ -486,7 +720,7 @@ module.exports = function fileScoper(fileSrc) {
   }
 };
 
-},{"./base62-encode":8,"./hash-string":16}],20:[function(require,module,exports){
+},{"./base62-encode":10,"./hash-string":18}],22:[function(require,module,exports){
 'use strict';
 
 var fileScoper = require('./scoped-name');
@@ -527,7 +761,7 @@ function scopify(css, ignores) {
   return replaceAnimations(result);
 }
 
-},{"./regex":17,"./replace-animations":18,"./scoped-name":19}],21:[function(require,module,exports){
+},{"./regex":19,"./replace-animations":20,"./scoped-name":21}],23:[function(require,module,exports){
 module.exports = attributeToProperty
 
 var transform = {
@@ -548,7 +782,7 @@ function attributeToProperty (h) {
   }
 }
 
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var attrToProp = require('hyperscript-attribute-to-property')
 
 var VAR = 0, TEXT = 1, OPEN = 2, CLOSE = 3, ATTR = 4
@@ -845,7 +1079,7 @@ var closeRE = RegExp('^(' + [
 ].join('|') + ')(?:[\.#][a-zA-Z0-9\u007F-\uFFFF_:-]+)*$')
 function selfClosing (tag) { return closeRE.test(tag) }
 
-},{"hyperscript-attribute-to-property":21}],23:[function(require,module,exports){
+},{"hyperscript-attribute-to-property":23}],25:[function(require,module,exports){
 var inserted = {};
 
 module.exports = function (css, options) {
@@ -869,306 +1103,14 @@ module.exports = function (css, options) {
     }
 };
 
-},{}],24:[function(require,module,exports){
-'use strict'
-
-var trailingNewlineRegex = /\n[\s]+$/
-var leadingNewlineRegex = /^\n[\s]+/
-var trailingSpaceRegex = /[\s]+$/
-var leadingSpaceRegex = /^[\s]+/
-var multiSpaceRegex = /[\n\s]+/g
-
-var TEXT_TAGS = [
-  'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'data', 'dfn', 'em', 'i',
-  'kbd', 'mark', 'q', 'rp', 'rt', 'rtc', 'ruby', 's', 'amp', 'small', 'span',
-  'strong', 'sub', 'sup', 'time', 'u', 'var', 'wbr'
-]
-
-var VERBATIM_TAGS = [
-  'code', 'pre', 'textarea'
-]
-
-module.exports = function appendChild (el, childs) {
-  if (!Array.isArray(childs)) return
-
-  var nodeName = el.nodeName.toLowerCase()
-
-  var hadText = false
-  var value, leader
-
-  for (var i = 0, len = childs.length; i < len; i++) {
-    var node = childs[i]
-    if (Array.isArray(node)) {
-      appendChild(el, node)
-      continue
-    }
-
-    if (typeof node === 'number' ||
-      typeof node === 'boolean' ||
-      typeof node === 'function' ||
-      node instanceof Date ||
-      node instanceof RegExp) {
-      node = node.toString()
-    }
-
-    var lastChild = el.childNodes[el.childNodes.length - 1]
-
-    // Iterate over text nodes
-    if (typeof node === 'string') {
-      hadText = true
-
-      // If we already had text, append to the existing text
-      if (lastChild && lastChild.nodeName === '#text') {
-        lastChild.nodeValue += node
-
-      // We didn't have a text node yet, create one
-      } else {
-        node = el.ownerDocument.createTextNode(node)
-        el.appendChild(node)
-        lastChild = node
-      }
-
-      // If this is the last of the child nodes, make sure we close it out
-      // right
-      if (i === len - 1) {
-        hadText = false
-        // Trim the child text nodes if the current node isn't a
-        // node where whitespace matters.
-        if (TEXT_TAGS.indexOf(nodeName) === -1 &&
-          VERBATIM_TAGS.indexOf(nodeName) === -1) {
-          value = lastChild.nodeValue
-            .replace(leadingNewlineRegex, '')
-            .replace(trailingSpaceRegex, '')
-            .replace(trailingNewlineRegex, '')
-            .replace(multiSpaceRegex, ' ')
-          if (value === '') {
-            el.removeChild(lastChild)
-          } else {
-            lastChild.nodeValue = value
-          }
-        } else if (VERBATIM_TAGS.indexOf(nodeName) === -1) {
-          // The very first node in the list should not have leading
-          // whitespace. Sibling text nodes should have whitespace if there
-          // was any.
-          leader = i === 0 ? '' : ' '
-          value = lastChild.nodeValue
-            .replace(leadingNewlineRegex, leader)
-            .replace(leadingSpaceRegex, ' ')
-            .replace(trailingSpaceRegex, '')
-            .replace(trailingNewlineRegex, '')
-            .replace(multiSpaceRegex, ' ')
-          lastChild.nodeValue = value
-        }
-      }
-
-    // Iterate over DOM nodes
-    } else if (node && node.nodeType) {
-      // If the last node was a text node, make sure it is properly closed out
-      if (hadText) {
-        hadText = false
-
-        // Trim the child text nodes if the current node isn't a
-        // text node or a code node
-        if (TEXT_TAGS.indexOf(nodeName) === -1 &&
-          VERBATIM_TAGS.indexOf(nodeName) === -1) {
-          value = lastChild.nodeValue
-            .replace(leadingNewlineRegex, '')
-            .replace(trailingNewlineRegex, ' ')
-            .replace(multiSpaceRegex, ' ')
-
-          // Remove empty text nodes, append otherwise
-          if (value === '') {
-            el.removeChild(lastChild)
-          } else {
-            lastChild.nodeValue = value
-          }
-        // Trim the child nodes but preserve the appropriate whitespace
-        } else if (VERBATIM_TAGS.indexOf(nodeName) === -1) {
-          value = lastChild.nodeValue
-            .replace(leadingSpaceRegex, ' ')
-            .replace(leadingNewlineRegex, '')
-            .replace(trailingNewlineRegex, ' ')
-            .replace(multiSpaceRegex, ' ')
-          lastChild.nodeValue = value
-        }
-      }
-
-      // Store the last nodename
-      var _nodeName = node.nodeName
-      if (_nodeName) nodeName = _nodeName.toLowerCase()
-
-      // Append the node to the DOM
-      el.appendChild(node)
-    }
-  }
-}
-
-},{}],25:[function(require,module,exports){
-'use strict'
-
-module.exports = [
-  'async', 'autofocus', 'autoplay', 'checked', 'controls', 'default',
-  'defaultchecked', 'defer', 'disabled', 'formnovalidate', 'hidden',
-  'ismap', 'loop', 'multiple', 'muted', 'novalidate', 'open', 'playsinline',
-  'readonly', 'required', 'reversed', 'selected'
-]
-
 },{}],26:[function(require,module,exports){
-module.exports = require('./dom')(document)
-
-},{"./dom":28}],27:[function(require,module,exports){
-'use strict'
-
-module.exports = [
-  'indeterminate'
-]
-
-},{}],28:[function(require,module,exports){
-'use strict'
-
-var hyperx = require('hyperx')
-var appendChild = require('./append-child')
-var SVG_TAGS = require('./svg-tags')
-var BOOL_PROPS = require('./bool-props')
-// Props that need to be set directly rather than with el.setAttribute()
-var DIRECT_PROPS = require('./direct-props')
-
-var SVGNS = 'http://www.w3.org/2000/svg'
-var XLINKNS = 'http://www.w3.org/1999/xlink'
-
-var COMMENT_TAG = '!--'
-
-module.exports = function (document) {
-  function nanoHtmlCreateElement (tag, props, children) {
-    var el
-
-    // If an svg tag, it needs a namespace
-    if (SVG_TAGS.indexOf(tag) !== -1) {
-      props.namespace = SVGNS
-    }
-
-    // If we are using a namespace
-    var ns = false
-    if (props.namespace) {
-      ns = props.namespace
-      delete props.namespace
-    }
-
-    // If we are extending a builtin element
-    var isCustomElement = false
-    if (props.is) {
-      isCustomElement = props.is
-      delete props.is
-    }
-
-    // Create the element
-    if (ns) {
-      if (isCustomElement) {
-        el = document.createElementNS(ns, tag, { is: isCustomElement })
-      } else {
-        el = document.createElementNS(ns, tag)
-      }
-    } else if (tag === COMMENT_TAG) {
-      return document.createComment(props.comment)
-    } else if (isCustomElement) {
-      el = document.createElement(tag, { is: isCustomElement })
-    } else {
-      el = document.createElement(tag)
-    }
-
-    // Create the properties
-    for (var p in props) {
-      if (props.hasOwnProperty(p)) {
-        var key = p.toLowerCase()
-        var val = props[p]
-        // Normalize className
-        if (key === 'classname') {
-          key = 'class'
-          p = 'class'
-        }
-        // The for attribute gets transformed to htmlFor, but we just set as for
-        if (p === 'htmlFor') {
-          p = 'for'
-        }
-        // If a property is boolean, set itself to the key
-        if (BOOL_PROPS.indexOf(key) !== -1) {
-          if (String(val) === 'true') val = key
-          else if (String(val) === 'false') continue
-        }
-        // If a property prefers being set directly vs setAttribute
-        if (key.slice(0, 2) === 'on' || DIRECT_PROPS.indexOf(key) !== -1) {
-          el[p] = val
-        } else {
-          if (ns) {
-            if (p === 'xlink:href') {
-              el.setAttributeNS(XLINKNS, p, val)
-            } else if (/^xmlns($|:)/i.test(p)) {
-              // skip xmlns definitions
-            } else {
-              el.setAttributeNS(null, p, val)
-            }
-          } else {
-            el.setAttribute(p, val)
-          }
-        }
-      }
-    }
-
-    appendChild(el, children)
-    return el
-  }
-
-  function createFragment (nodes) {
-    var fragment = document.createDocumentFragment()
-    for (var i = 0; i < nodes.length; i++) {
-      if (nodes[i] == null) continue
-      if (Array.isArray(nodes[i])) {
-        fragment.appendChild(createFragment(nodes[i]))
-      } else {
-        if (typeof nodes[i] === 'string') nodes[i] = document.createTextNode(nodes[i])
-        fragment.appendChild(nodes[i])
-      }
-    }
-    return fragment
-  }
-
-  var exports = hyperx(nanoHtmlCreateElement, {
-    comments: true,
-    createFragment: createFragment
-  })
-  exports.default = exports
-  exports.createComment = nanoHtmlCreateElement
-  return exports
-}
-
-},{"./append-child":24,"./bool-props":25,"./direct-props":27,"./svg-tags":29,"hyperx":22}],29:[function(require,module,exports){
-'use strict'
-
-module.exports = [
-  'svg', 'altGlyph', 'altGlyphDef', 'altGlyphItem', 'animate', 'animateColor',
-  'animateMotion', 'animateTransform', 'circle', 'clipPath', 'color-profile',
-  'cursor', 'defs', 'desc', 'ellipse', 'feBlend', 'feColorMatrix',
-  'feComponentTransfer', 'feComposite', 'feConvolveMatrix',
-  'feDiffuseLighting', 'feDisplacementMap', 'feDistantLight', 'feFlood',
-  'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur', 'feImage',
-  'feMerge', 'feMergeNode', 'feMorphology', 'feOffset', 'fePointLight',
-  'feSpecularLighting', 'feSpotLight', 'feTile', 'feTurbulence', 'filter',
-  'font', 'font-face', 'font-face-format', 'font-face-name', 'font-face-src',
-  'font-face-uri', 'foreignObject', 'g', 'glyph', 'glyphRef', 'hkern', 'image',
-  'line', 'linearGradient', 'marker', 'mask', 'metadata', 'missing-glyph',
-  'mpath', 'path', 'pattern', 'polygon', 'polyline', 'radialGradient', 'rect',
-  'set', 'stop', 'switch', 'symbol', 'text', 'textPath', 'title', 'tref',
-  'tspan', 'use', 'view', 'vkern'
-]
-
-},{}],30:[function(require,module,exports){
 const csjs = require('csjs-inject')
-const html = require('nanohtml')
+const bel = require('bel')
 
 module.exports = inputInteger
 
 function inputInteger() {
-    return html`<input class=${css.inputInteger} type="number" placeholder="0" >`
+    return bel`<input class=${css.inputInteger} type="number" placeholder="0" >`
 }
 
 const css = csjs`
@@ -1178,4 +1120,4 @@ const css = csjs`
         padding: 8px;
     }
 `
-},{"csjs-inject":4,"nanohtml":26}]},{},[1]);
+},{"bel":3,"csjs-inject":6}]},{},[1]);
